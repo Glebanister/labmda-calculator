@@ -19,7 +19,7 @@ extra-source-files:  CHANGELOG.md
 
 executable labmda-calculator
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:       Lambda
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14
   -- hs-source-dirs:
