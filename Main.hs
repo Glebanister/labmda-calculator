@@ -1,6 +1,9 @@
-module Main where
-
-import Lambda (Tree (Branch, Leaf), fringe)
+import Lambda
+import Combinator
 
 main :: IO ()
-main = print (fringe (Branch (Leaf 1) (Leaf 2)))
+main = do
+  let f = (Lam "x" (Lam "y" z))
+  let s = (Lam "y" (Lam "x" y))
+  print $ alphaEq f s
+  print $ alphaEq s f
