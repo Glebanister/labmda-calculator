@@ -1,22 +1,20 @@
 {-# LANGUAGE FlexibleContexts #-}
 
+module Typing where
+
+import Lambda ( Expr(..), Symb )
+
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State
-import Data.List (group, nub, union)
-import Data.Semigroup
+  ( MonadState (get, put),
+    StateT,
+    evalStateT,
+  )
+import Data.List (union)
+import Data.Semigroup ()
 import Data.Set (Set, empty, fromList, insert, toList)
 
-type Symb = String
-
-infixl 2 :@
-
 infixr 3 :->
-
-data Expr
-  = Var Symb
-  | Expr :@ Expr
-  | Lam Symb Expr
-  deriving (Eq, Read, Show)
 
 -- Тип
 data Type
