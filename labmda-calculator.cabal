@@ -20,7 +20,8 @@ extra-source-files:  CHANGELOG.md
 executable labmda-calculator
   main-is:             Main.hs
   other-modules:       Lambda,
-                       Combinator
+                       Combinator,
+                       Typing
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14,
                        containers >=0.6.2.1,
