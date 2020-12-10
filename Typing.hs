@@ -2,7 +2,7 @@
 
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State
-import Data.List (nub, union)
+import Data.List (group, nub, union)
 import Data.Semigroup
 import Data.Set (Set, empty, fromList, insert, toList)
 
@@ -116,10 +116,23 @@ equations env expr tp = evalStateT (equationsSt env expr tp) 0
     equationsSt env (m :@ n) tp = do
       alpha <- getNextType
       e1 <- equationsSt env m (alpha :-> tp)
-      e2 <- equationsSt env m alpha
+      e2 <- equationsSt env n alpha
       return $ e1 ++ e2
     equationsSt env (Lam x m) tp = do
       alpha <- getNextType
       beta <- getNextType
-      e <- equationsSt (extendEnv env x tp) m beta
+      e <- equationsSt (extendEnv env x alpha) m beta
       return $ e ++ [(alpha :-> beta, tp)]
+
+principlePair :: (MonadError String m) => Expr -> m (Env, Type)
+principlePair expr = do
+  let gamma0 = Env $ zip (freeVars expr) (map (\n -> TVar $ "Free." ++ (show n)) [0 ..])
+  let sigma0 = TVar "Beta"
+  equs <- equations gamma0 expr sigma0
+  let left = bindTypes $ map fst equs
+  let right = bindTypes $ map snd equs
+  subs <- unify left right
+  return (appSubsEnv subs gamma0, appSubsTy subs sigma0)
+  where
+    bindTypes :: [Type] -> Type
+    bindTypes ts = foldr1 (:->) ts
