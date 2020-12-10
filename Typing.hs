@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.State
 import Data.List (nub, union)
 import Data.Semigroup
 import Data.Set (Set, empty, fromList, insert, toList)
@@ -100,8 +101,25 @@ unify (s1 :-> s2) (t1 :-> t2) = do
   u1 <- (unify (appSubsTy u2 s1) (appSubsTy u2 t1))
   return $ u1 <> u2
 
-equations :: MonadError String m => Env -> Expr -> Type -> m [(Type, Type)]
-equations env (Var name) s = do
-  varType <- appEnv env name
-  return [(varType, s)]
-equations env (m :@ n) s = (equations env )
+equations :: (MonadError String m) => Env -> Expr -> Type -> m [(Type, Type)]
+equations env expr tp = evalStateT (equationsSt env expr tp) 0
+  where
+    getNextType :: MonadState Integer m => m Type
+    getNextType = do
+      index <- get
+      put (succ index)
+      return $ TVar ('a' : show index)
+    equationsSt :: MonadError String m => Env -> Expr -> Type -> StateT Integer m [(Type, Type)]
+    equationsSt env (Var name) tp = do
+      varType <- appEnv env name
+      return [(tp, varType)]
+    equationsSt env (m :@ n) tp = do
+      alpha <- getNextType
+      e1 <- equationsSt env m (alpha :-> tp)
+      e2 <- equationsSt env m alpha
+      return $ e1 ++ e2
+    equationsSt env (Lam x m) tp = do
+      alpha <- getNextType
+      beta <- getNextType
+      e <- equationsSt (extendEnv env x tp) m beta
+      return $ e ++ [(alpha :-> beta, tp)]
