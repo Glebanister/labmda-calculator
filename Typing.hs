@@ -2,8 +2,6 @@
 
 module Typing where
 
-import Lambda ( Expr(..), Symb )
-
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State
   ( MonadState (get, put),
@@ -13,6 +11,7 @@ import Control.Monad.State
 import Data.List (union)
 import Data.Semigroup ()
 import Data.Set (Set, empty, fromList, insert, toList)
+import Lambda (Expr (..), Symb, freeVars, unique)
 
 infixr 3 :->
 
@@ -20,7 +19,11 @@ infixr 3 :->
 data Type
   = TVar Symb
   | Type :-> Type
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show Type where
+  show (TVar t) = t
+  show (l :-> r) = "(" ++ show l ++ ")" ++ " -> " ++ "(" ++ show r ++ ")"
 
 -- Контекст
 newtype Env = Env [(Symb, Type)]
@@ -29,19 +32,6 @@ newtype Env = Env [(Symb, Type)]
 -- Подстановка
 newtype SubsTy = SubsTy [(Symb, Type)]
   deriving (Eq, Show)
-
-unique :: Ord a => [a] -> [a]
-unique xs = toList $ fromList xs
-
-freeVars :: Expr -> [Symb]
-freeVars expr = unique $ freeVars' Data.Set.empty expr
-  where
-    freeVars' :: Set String -> Expr -> [Symb]
-    freeVars' captured (Var name) = case (elem name captured) of
-      True -> []
-      False -> [name]
-    freeVars' captured (l :@ r) = (freeVars' captured l) ++ (freeVars' captured r)
-    freeVars' captured (Lam name ex) = freeVars' (Data.Set.insert name captured) ex
 
 freeTVars :: Type -> [Symb]
 freeTVars t = unique $ freeTVars' t
