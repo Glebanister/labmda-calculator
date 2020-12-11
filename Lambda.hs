@@ -11,7 +11,7 @@ data Expr
   = Var Symb
   | Expr :@ Expr
   | Lam Symb Expr
-  deriving (Eq, Read, Show)
+  deriving (Eq)
 
 unique :: [String] -> [String]
 unique xs = toList $ fromList xs
@@ -67,3 +67,48 @@ infix 1 `betaEq`
 betaEq :: Expr -> Expr -> Bool
 betaEq l r = nf l `alphaEq` nf r
 
+parseIdentifier :: Parsec String String String
+parseIdentifier = do
+  firstLetter <- lower
+  rest <- many alphaNum
+  return $ firstLetter : rest
+
+parseExpression :: Parsec String String Expr
+parseExpression = do
+  exprs <- sepBy1 (parseLambda <|> parseExpressionInBraces <|> parseVariable) spaces
+  return $ foldl1 (:@) exprs
+
+parseExpressionInBraces :: Parsec String String Expr
+parseExpressionInBraces = do
+  char '('
+  spaces
+  e <- parseExpression
+  spaces
+  char ')'
+  return e
+
+parseVariable :: Parsec String String Expr
+parseVariable = do
+  name <- parseIdentifier
+  return $ Var name
+
+parseLambda :: Parsec String String Expr
+parseLambda = do
+  char '\\'
+  spaces
+  parameters <- sepEndBy1 parseIdentifier spaces
+  spaces
+  string "->"
+  spaces
+  expression <- parseExpression
+  return $ foldr Lam expression parameters
+
+instance Show Expr where
+  show (Var v) = v
+  show (l :@ r) = "(" ++ show l ++ ") (" ++ show r ++ ")"
+  show (Lam x m) = "\\" ++ x ++ " -> (" ++ show m ++ ")"
+
+instance Read Expr where
+  readsPrec _ input = case runParser parseExpression "" "" input of
+    Left error -> []
+    Right expr -> [(expr, "")]
