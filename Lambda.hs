@@ -36,11 +36,23 @@ modifyTied func = modifyExpr Var func
 subst :: Symb -> Expr -> Expr -> Expr
 subst name what to = modifyFree subst' (modifyTied (++ "'") to)
   where
-    subst' varName | name == varName = modifyTied (++ "%") what
+    subst' varName | name == varName = modifyTied (++ "@") what
     subst' varName = Var varName
 
 alphaEq :: Expr -> Expr -> Bool
 alphaEq (Var a) (Var b) = a == b
 alphaEq (a :@ b) (x :@ y) = (alphaEq a x) && (alphaEq b y)
-alphaEq (Lam fName fEx) (Lam sName sEx) = alphaEq (subst fName (Var $ "!" ++ fName ++ "!") fEx) (subst sName (Var $ "!" ++ fName ++ "!") sEx)
+alphaEq (Lam fName fEx) (Lam sName sEx) = alphaEq (subst fName (Var $ fName ++ "!") fEx) (subst sName (Var $ fName ++ "!") sEx)
 alphaEq _ _ = False
+
+reduceOnce :: Expr -> Maybe Expr
+reduceOnce ((Lam x m) :@ n) = return $ subst x n m
+reduceOnce (Var name) = Nothing
+reduceOnce (l :@ r) = case reduceOnce l of
+  Just redL -> Just $ redL :@ r
+  Nothing -> do
+    redR <- reduceOnce r
+    return $ l :@ redR
+reduceOnce (Lam x m) = do
+  m <- reduceOnce m
+  return $ Lam x m
