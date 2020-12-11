@@ -21,7 +21,8 @@ executable labmda-calculator
   main-is:             Main.hs
   other-modules:       Lambda,
                        Combinator,
-                       Typing
+                       Typing,
+                       Kernel
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14,
                        containers >=0.6.2.1,

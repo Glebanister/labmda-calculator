@@ -1,9 +1,5 @@
-import Combinator ()
-import Lambda
-import Text.Parsec
-import Typing ()
+import Kernel (routine)
 
 main :: IO ()
-main = do
-  print $ runParser parseExpression "" "" "\\x1 x2 x3 -> x1 x2 x2"
-  return ()
+main =
+  putStrLn "Welcome to lambda calculator!" >> routine
