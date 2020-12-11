@@ -1,7 +1,7 @@
 module Lambda where
 
-import Data.Map (Map, empty, insert, lookup)
-import Data.Set (Set, empty, insert)
+import Data.Set (Set, empty, fromList, insert, toList)
+import Text.Parsec
 
 type Symb = String
 
@@ -13,36 +13,36 @@ data Expr
   | Lam Symb Expr
   deriving (Eq, Read, Show)
 
-type FreeVariableModifier = String -> Expr
+unique :: [String] -> [String]
+unique xs = toList $ fromList xs
 
-type TiedVariableModifier = String -> String
-
-modifyExpr :: FreeVariableModifier -> TiedVariableModifier -> Expr -> Expr
-modifyExpr free tied ex = trav' free tied ex Data.Set.empty
+freeVars :: Expr -> [Symb]
+freeVars expr = unique $ freeVars' Data.Set.empty expr
   where
-    trav' :: FreeVariableModifier -> TiedVariableModifier -> Expr -> (Set String) -> Expr
-    trav' free tied (Var name) captured
-      | elem name captured = Var (tied name)
-      | otherwise = free name
-    trav' free tied (left :@ right) captured = (trav' free tied left captured) :@ (trav' free tied right captured)
-    trav' free tied (Lam name ex) captured = Lam (tied name) (trav' free tied ex (Data.Set.insert name captured))
-
-modifyFree :: FreeVariableModifier -> Expr -> Expr
-modifyFree func = modifyExpr func id
-
-modifyTied :: TiedVariableModifier -> Expr -> Expr
-modifyTied func = modifyExpr Var func
+    freeVars' :: Set String -> Expr -> [Symb]
+    freeVars' captured (Var name) = case (elem name captured) of
+      True -> []
+      False -> [name]
+    freeVars' captured (l :@ r) = (freeVars' captured l) ++ (freeVars' captured r)
+    freeVars' captured (Lam name ex) = freeVars' (Data.Set.insert name captured) ex
 
 subst :: Symb -> Expr -> Expr -> Expr
-subst name what to = modifyFree subst' (modifyTied (++ "'") to)
+subst v n (Var name)
+  | v == name = n
+  | otherwise = Var name
+subst v n (l :@ r) = (subst v n l) :@ (subst v n r)
+subst v n l@(Lam varName body)
+  | notElem v (freeVars l) = l
+  | notElem varName $ freeVars n = Lam varName $ subst v n body
+  | otherwise = Lam nextName $ subst v n nextBody
   where
-    subst' varName | name == varName = modifyTied (++ "@") what
-    subst' varName = Var varName
+    nextName = head $ filter (`notElem` (freeVars n ++ freeVars body)) $ map (varName ++) (map show [0 ..])
+    nextBody = subst varName (Var nextName) body
 
 alphaEq :: Expr -> Expr -> Bool
 alphaEq (Var a) (Var b) = a == b
 alphaEq (a :@ b) (x :@ y) = (alphaEq a x) && (alphaEq b y)
-alphaEq (Lam fName fEx) (Lam sName sEx) = alphaEq (subst fName (Var $ fName ++ "!") fEx) (subst sName (Var $ fName ++ "!") sEx)
+alphaEq (Lam fName fEx) (Lam sName sEx) = alphaEq (subst fName (Var $ '!' : fName) fEx) (subst sName (Var $ '!' : fName) sEx)
 alphaEq _ _ = False
 
 reduceOnce :: Expr -> Maybe Expr
@@ -56,3 +56,14 @@ reduceOnce (l :@ r) = case reduceOnce l of
 reduceOnce (Lam x m) = do
   m <- reduceOnce m
   return $ Lam x m
+
+nf :: Expr -> Expr
+nf expr = case reduceOnce expr of
+  Just e -> nf e
+  Nothing -> expr
+
+infix 1 `betaEq`
+
+betaEq :: Expr -> Expr -> Bool
+betaEq l r = nf l `alphaEq` nf r
+
