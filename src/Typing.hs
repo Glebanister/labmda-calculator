@@ -22,8 +22,17 @@ data Type
   deriving (Eq)
 
 instance Show Type where
-  show (TVar t) = t
-  show (l :-> r) = "(" ++ show l ++ ")" ++ " -> " ++ "(" ++ show r ++ ")"
+  show t = fst $ showLen t
+    where
+      showLen :: Type -> (String, Integer)
+      showLen (TVar t) = (t, 0)
+      showLen (l :-> r) = case compare lenL 0 of
+        EQ -> (strL ++ arrow ++ strR, lenR + 1)
+        _ -> ("(" ++ strL ++ ")" ++ arrow ++ strR, lenR + 1)
+        where
+          arrow = " -> "
+          (strL, lenL) = showLen l
+          (strR, lenR) = showLen r
 
 -- Контекст
 newtype Env = Env [(Symb, Type)]
@@ -117,8 +126,8 @@ equations env expr tp = evalStateT (equationsSt env expr tp) 0
 
 principlePair :: (MonadError String m) => Expr -> m (Env, Type)
 principlePair expr = do
-  let gamma0 = Env $ zip (freeVars expr) (map (\n -> TVar $ "Free." ++ (show n)) [0 ..])
-  let sigma0 = TVar "Beta"
+  let gamma0 = Env $ zip (freeVars expr) (map (\n -> TVar $ "b" ++ (show n)) [0 ..])
+  let sigma0 = TVar "b"
   equs <- equations gamma0 expr sigma0
   let left = bindTypes $ map fst equs
   let right = bindTypes $ map snd equs
