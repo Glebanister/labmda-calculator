@@ -8,7 +8,7 @@ import Control.Monad.State
     StateT,
     evalStateT,
   )
-import Data.List (union)
+import Data.List (intercalate, union)
 import Data.Semigroup ()
 import Data.Set (Set, empty, fromList, insert, toList)
 import Lambda (Expr (..), Symb, freeVars, unique)
@@ -27,7 +27,10 @@ instance Show Type where
 
 -- Контекст
 newtype Env = Env [(Symb, Type)]
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show Env where
+  show (Env ev) = intercalate "; " $ map (\(name, tp) -> name ++ " :: " ++ show tp) ev
 
 -- Подстановка
 newtype SubsTy = SubsTy [(Symb, Type)]
