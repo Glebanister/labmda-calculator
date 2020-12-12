@@ -29,9 +29,11 @@ Give some function to lambda calculator and it will return type and context of t
 
 ```text
 λ> \x y -> x
-() => (a0) -> ((a2) -> (a0))
-λ> \x -> x y
-(y :: Free.0) => ((Free.0) -> (a1)) -> (a1)
+() => a0 -> a2 -> a0
+λ> \f g x -> f x (g x)
+() => (a4 -> a6 -> a5) -> (a4 -> a6) -> a4 -> a5
+λ> \x -> x y z
+(y :: b0; z :: b1) => (b0 -> b1 -> a1) -> a1
 λ> \x -> x x
-Typecheck Error: Can't unify (a0) with ((a0) -> (a1))!
+Typecheck Error: Can't unify (a0) with (a0 -> a1)!
 ```
