@@ -4,6 +4,7 @@ module Lambda
     nf,
     betaEq,
     parseExpression,
+    parseIdentifier,
     reduceOnce,
     Symb,
     unique,
@@ -52,8 +53,8 @@ instance Read Expr where
     Left error -> []
     Right expr -> [(expr, "")]
 
-unique :: [String] -> [String]
--- ^ unique a - list of unique strings from a
+unique :: Ord a => [a] -> [a]
+-- ^ unique a - list of unique elements of a
 unique xs = toList $ fromList xs
 
 freeVars :: Expr -> [Symb]
