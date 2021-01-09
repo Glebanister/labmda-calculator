@@ -4,10 +4,13 @@
 
 module Kernel where
 
-import Control.Monad.Except
-import Control.Monad.Identity (Identity)
-import Control.Monad.State.Lazy
-import Data.HashMap.Lazy (HashMap, lookup)
+import Control.Monad.State
+  ( MonadState (get, state),
+    MonadTrans (lift),
+    State,
+    StateT,
+  )
+import Data.HashMap.Lazy (HashMap, empty, lookup)
 import Lambda (Expr, parseExpression, parseIdentifier)
 import System.IO (hFlush, stdout)
 import Text.Parsec
@@ -21,6 +24,9 @@ import Text.Parsec
 import Typing (Type, principlePair)
 
 type Scope = HashMap String Expr
+
+empmtyScope :: Scope
+empmtyScope = empty
 
 data Input
   = Assign String Expr
@@ -36,14 +42,14 @@ data Output
   | Message String
   | QuitO
 
-processLine :: String -> Output
-processLine line =
+processLine :: String -> StateT Scope IO () -> StateT Scope IO Output
+processLine line scope = do
   case runParser parseInput "" "" line of
-    Left error -> ParsingError $ show error
-    Right (Assign name expr) -> Message $ "Assignation: " ++ name ++ " = " ++ show expr
-    Right (Evaluate expr) -> Message $ "Evaluate: " ++ show expr
-    Right (Typeof expr) -> Message $ "Typeof: " ++ show expr
-    Right QuitI -> QuitO
+    Left error -> return $ ParsingError $ show error
+    Right (Assign name expr) -> return $ Message $ "Assignation: " ++ name ++ " = " ++ show expr
+    Right (Evaluate expr) -> return $ Message $ "Evaluate: " ++ show expr
+    Right (Typeof expr) -> return $ Message $ "Typeof: " ++ show expr
+    Right QuitI -> return $ QuitO
 
 instance Show Output where
   show (Result expr) = show expr
@@ -60,17 +66,26 @@ instance Show Output where
 --       Left err -> "Typechecking Error: " ++ err
 --       Right (env, tp) -> "(" ++ show env ++ ")" ++ " => " ++ show tp
 
-routine :: IO ()
+routine :: StateT Scope IO ()
 -- ^ main routine iteration
 routine = do
-  putStr "λ> "
-  hFlush stdout
-  input <- getLine
-  case processLine input of
-    QuitO -> return ()
-    other -> (putStrLn $ show other) >> routine
+  lift $ putStr "λ> "
+  lift $ hFlush stdout
+  input <- lift getLine
+  scope <- get
+  res <- processLine input $ state (\x -> ((), scope))
 
--- parsing
+  case res of
+    QuitO -> return ()
+    nonQuit -> (lift $ putStrLn $ show nonQuit) >> routine
+
+-- Result e -> (lift $ putStrLn $ show e) >> routine
+-- ExprType t -> undefined
+-- ParsingError m -> undefined
+-- TypecheckError m -> undefined
+-- Message m -> undefined
+
+-- command parsing
 
 parseCommandExpr :: Char -> (Expr -> Input) -> Parsec String String Input
 parseCommandExpr ch inputMaker = do
