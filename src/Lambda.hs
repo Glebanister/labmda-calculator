@@ -69,7 +69,7 @@ freeVars expr = unique $ freeVars' Data.Set.empty expr
     freeVars' captured (Lam name ex) = freeVars' (Data.Set.insert name captured) ex
 
 subst :: Symb -> Expr -> Expr -> Expr
--- ^ subst name new expr - substitute all free variable with name `name` occurences in expression expr to new
+-- ^ subst name new expr - substitute all free variable with name `name` occurences in expression `expr` to `new`
 subst v n (Var name)
   | v == name = n
   | otherwise = Var name

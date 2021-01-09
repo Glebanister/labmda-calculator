@@ -4,14 +4,12 @@
 
 module Kernel where
 
-import Control.Monad.State
-  ( MonadState (get, state),
-    MonadTrans (lift),
-    State,
-    StateT,
-  )
-import Data.HashMap.Lazy (HashMap, empty, lookup)
-import Lambda (Expr, parseExpression, parseIdentifier)
+import Control.Monad (foldM)
+import Control.Monad.Except (runExcept)
+import Control.Monad.State (MonadState (get, state), MonadTrans (lift), State, StateT, modify)
+import Control.Monad.State.Lazy (MonadState (put))
+import Data.HashMap.Lazy (HashMap, empty, insert, lookup)
+import Lambda (Expr, freeVars, nf, parseExpression, parseIdentifier, subst)
 import System.IO (hFlush, stdout)
 import Text.Parsec
   ( Parsec,
@@ -21,12 +19,18 @@ import Text.Parsec
     string,
     (<|>),
   )
-import Typing (Type, principlePair)
+import Typing (Env, Type, principlePair)
 
 type Scope = HashMap String Expr
 
 empmtyScope :: Scope
 empmtyScope = empty
+
+getVar :: String -> Scope -> Maybe Expr
+getVar name scope = Data.HashMap.Lazy.lookup name scope
+
+addVar :: String -> Expr -> Scope -> Scope
+addVar = insert
 
 data Input
   = Assign String Expr
@@ -36,35 +40,49 @@ data Input
 
 data Output
   = Result Expr
-  | ExprType Type
-  | ParsingError String
-  | TypecheckError String
+  | ExprType (Env, Type)
+  | Error String String
   | Message String
   | QuitO
+  | Ok
 
-processLine :: String -> StateT Scope IO () -> StateT Scope IO Output
+expandExpression :: Expr -> Scope -> Either String Expr
+expandExpression expr scope =
+  foldM
+    ( \e varName -> case getVar varName scope of
+        Nothing -> Left $ "name '" ++ varName ++ "' is not in scope"
+        Just expr -> Right expr
+    )
+    expr
+    (freeVars expr)
+
+processLine :: String -> Scope -> StateT Scope IO Output
 processLine line scope = do
+  put scope
   case runParser parseInput "" "" line of
-    Left error -> return $ ParsingError $ show error
-    Right (Assign name expr) -> return $ Message $ "Assignation: " ++ name ++ " = " ++ show expr
-    Right (Evaluate expr) -> return $ Message $ "Evaluate: " ++ show expr
-    Right (Typeof expr) -> return $ Message $ "Typeof: " ++ show expr
-    Right QuitI -> return $ QuitO
+    Left error -> return $ Error "Parsing" $ show error
+    Right (Assign name expr) -> case expandExpression expr scope of
+      Left m -> return $ Error "UndefinedVariable" m
+      Right expr -> do
+        modify $ addVar name expr
+        return Ok
+    Right (Evaluate expr) -> case expandExpression expr scope of
+      Left m -> return $ Error "UndefinedVariable" m
+      Right expr -> return $ Result $ nf expr
+    Right (Typeof expr) -> case expandExpression expr scope of
+      Left m -> return $ Error "UndefinedVariable" m
+      Right expr -> case runExcept $ principlePair expr of
+        Left err -> return $ Error "Typing" err
+        Right t -> return $ ExprType t
+    Right QuitI -> return QuitO
 
 instance Show Output where
   show (Result expr) = show expr
-  show (ExprType t) = show t
-  show (ParsingError e) = "ParsingError: " ++ e
-  show (TypecheckError e) = "TypecheckingError: " ++ e
+  show (ExprType (env, tp)) = "(" ++ show env ++ ")" ++ " => " ++ show tp
+  show (Error name message) = name ++ "Error: " ++ message
   show (Message m) = m
-
--- processLine :: String -> String
--- processLine line =
---   case runParser parseExpression "" "" line of
---     Left error -> "Parsing Error: " ++ show error
---     Right expr -> case runExcept (principlePair expr) of
---       Left err -> "Typechecking Error: " ++ err
---       Right (env, tp) -> "(" ++ show env ++ ")" ++ " => " ++ show tp
+  show QuitO = undefined
+  show Ok = undefined
 
 routine :: StateT Scope IO ()
 -- ^ main routine iteration
@@ -73,17 +91,11 @@ routine = do
   lift $ hFlush stdout
   input <- lift getLine
   scope <- get
-  res <- processLine input $ state (\x -> ((), scope))
-
+  res <- processLine input scope
   case res of
     QuitO -> return ()
-    nonQuit -> (lift $ putStrLn $ show nonQuit) >> routine
-
--- Result e -> (lift $ putStrLn $ show e) >> routine
--- ExprType t -> undefined
--- ParsingError m -> undefined
--- TypecheckError m -> undefined
--- Message m -> undefined
+    Ok -> routine
+    out -> (lift $ putStrLn $ show out) >> routine
 
 -- command parsing
 
